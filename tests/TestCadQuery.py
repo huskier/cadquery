@@ -123,7 +123,7 @@ class TestCadQuery(BaseTest):
         Workplane.makeCubes = makeCubes
 
         #call it
-        result = Workplane("XY").box(6.0,8.0,0.5).faces(">Z").rect(4.0,4.0,forConstruction=True).vertices()
+        result = Workplane("XY").box(6.0,8.0,0.5).faces(">Z").workplane().rect(4.0,4.0,forConstruction=True).vertices()
         result = result.makeCubes(1.0)
         result = result.combineSolids()
         self.saveModel(result)
@@ -259,7 +259,7 @@ class TestCadQuery(BaseTest):
             test combining a lof with another feature
         :return:
         """
-        s = Workplane("front").box(4.0,4.0,0.25).faces(">Z").circle(1.5)\
+        s = Workplane("front").box(4.0,4.0,0.25).faces(">Z").workplane().circle(1.5)\
         .workplane(offset=3.0).rect(0.75,0.5).loft(combine=True)
         self.saveModel(s)
         #self.assertEqual(1,s.solids().size() )
@@ -485,7 +485,7 @@ class TestCadQuery(BaseTest):
         Test Creation of workplane from multiple co-planar face
         selection.
         """
-        s = Workplane('XY').box(1,1,1).faces('>Z').rect(1,0.5).cutBlind(-0.2)
+        s = Workplane('XY').box(1,1,1).faces('>Z').workplane().rect(1,0.5).cutBlind(-0.2)
 
         w = s.faces('>Z').workplane()
         o = w.objects[0] # origin of the workplane
@@ -1114,7 +1114,7 @@ class TestCadQuery(BaseTest):
 
     def testCombine(self):
         s = Workplane(Plane.XY())
-        objects1 = s.rect(2.0,2.0).extrude(0.5).faces('>Z').rect(1.0,1.0).extrude(0.5)
+        objects1 = s.rect(2.0,2.0).extrude(0.5).faces('>Z').workplane().rect(1.0,1.0).extrude(0.5)
 
         objects1.combine()
 

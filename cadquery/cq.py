@@ -882,6 +882,127 @@ class CQ(object):
         solid.wrapped = s.wrapped
         return self.newObject([s])
 
+    def cut(self, toCut, combine=True, clean=True):
+        """
+        Cuts the provided solid from the current solid, IE, perform a solid subtraction
+
+        if combine=True, the result and the original are updated to point to the new object
+        if combine=False, the result will be on the stack, but the original is unmodified
+
+        :param toCut: object to cut
+        :type toCut: a solid object, or a CQ object having a solid,
+        :param boolean clean: call :py:meth:`clean` afterwards to have a clean shape
+        :raises: ValueError if there is no solid to subtract from in the chain
+        :return: a CQ object with the resulting object selected
+        """
+
+        # look for parents to cut from
+        solidRef = self.findSolid(searchStack=True, searchParents=True)
+
+        if solidRef is None:
+            raise ValueError("Cannot find solid to cut from")
+        solidToCut = None
+        if type(toCut) == CQ or type(toCut) == Workplane:
+            solidToCut = toCut.val()
+        elif type(toCut) == Solid:
+            solidToCut = toCut
+        else:
+            raise ValueError("Cannot cut type '{}'".format(type(toCut)))
+
+        newS = solidRef.cut(solidToCut)
+
+        if clean: newS = newS.clean()
+
+        if combine:
+            solidRef.wrapped = newS.wrapped
+
+	return self.newObject([newS])
+
+
+    def union(self, toUnion=None, combine=True, clean=True):
+        """
+        Unions all of the items on the stack of toUnion with the current solid.
+        If there is no current solid, the items in toUnion are unioned together.
+        if combine=True, the result and the original are updated to point to the new object
+        if combine=False, the result will be on the stack, but the original is unmodified
+
+        :param toUnion:
+        :type toUnion: a solid object, or a CQ object having a solid,
+        :param boolean clean: call :py:meth:`clean` afterwards to have a clean shape
+        :raises: ValueError if there is no solid to add to in the chain
+        :return: a CQ object with the resulting object selected
+        """
+
+        #first collect all of the items together
+        if type(toUnion) == CQ or type(toUnion) == Workplane:
+            solids = toUnion.solids().vals()
+            if len(solids) < 1:
+                raise ValueError("CQ object  must have at least one solid on the stack to union!")
+            newS = solids.pop(0)
+            for s in solids:
+                newS = newS.fuse(s)
+        elif type(toUnion) == Solid:
+            newS = toUnion
+        else:
+            raise ValueError("Cannot union type '{}'".format(type(toUnion)))
+
+        #now combine with existing solid, if there is one
+        # look for parents to cut from
+        solidRef = self.findSolid(searchStack=True, searchParents=True)
+        if combine and solidRef is not None:
+            r = solidRef.fuse(newS)
+            solidRef.wrapped = newS.wrapped
+        else:
+            r = newS
+
+        if clean: r = r.clean()
+
+	return self.newObject([r])
+
+    def combine(self, clean=True):
+        """
+        Attempts to combine all of the items on the stack into a single item.
+        WARNING: all of the items must be of the same type!
+
+        :param boolean clean: call :py:meth:`clean` afterwards to have a clean shape
+        :raises: ValueError if there are no items on the stack, or if they cannot be combined
+        :return: a CQ object with the resulting object selected
+        """
+        items = list(self.objects)
+        s = items.pop(0)
+        for ss in items:
+            s = s.fuse(ss)
+
+        if clean: s = s.clean()
+
+	return self.newObject([s])
+
+    def clean(self):
+        """
+        Cleans the current solid by removing unwanted edges from the
+        faces.
+
+        Normally you don't have to call this function. It is
+        automatically called after each related operation. You can
+        disable this behavior with `clean=False` parameter if method
+        has any. In some cases this can improve performance
+        drastically but is generally dis-advised since it may break
+        some operations such as fillet.
+
+        Note that in some cases where lots of solid operations are
+        chained, `clean()` may actually improve performance since
+        the shape is 'simplified' at each step and thus next operation
+        is easier.
+
+        Also note that, due to limitation of the underlying engine,
+        `clean` may fail to produce a clean output in some cases such as
+        spherical faces.
+        """
+        try:
+            cleanObjects = [obj.clean() for obj in self.objects]
+        except AttributeError:
+            raise AttributeError("%s object doesn't support `clean()` method!" % obj.ShapeType())
+        return self.newObject(cleanObjects)
 
 class Workplane(CQ):
     """
@@ -1767,7 +1888,7 @@ class Workplane(CQ):
         if clean: s = s.clean()
 
         ctxSolid.wrapped = s.wrapped
-        return self.newObject([s])
+	return CQ.newObject(self, [s])
 
     #but parameter list is different so a simple function pointer wont work
     def cboreHole(self, diameter, cboreDiameter, cboreDepth, depth=None, clean=True):
@@ -1997,7 +2118,7 @@ class Workplane(CQ):
         else:
             newS = self.newObject([r])
         if clean: newS = newS.clean()
-        return newS
+        return CQ.newObject(self, newS.vals())
 
     def revolve(self, angleDegrees=360.0, axisStart=None, axisEnd=None, combine=True, clean=True):
         """
@@ -2086,9 +2207,9 @@ class Workplane(CQ):
 
         if clean: s = s.clean()
 
-        return self.newObject([s])
+	return CQ.newObject(self, [s])
 
-    def union(self, toUnion=None, combine=True, clean=True):
+    #def union(self, toUnion=None, combine=True, clean=True):
         """
         Unions all of the items on the stack of toUnion with the current solid.
         If there is no current solid, the items in toUnion are unioned together.
@@ -2100,8 +2221,8 @@ class Workplane(CQ):
         :param boolean clean: call :py:meth:`clean` afterwards to have a clean shape
         :raises: ValueError if there is no solid to add to in the chain
         :return: a CQ object with the resulting object selected
-        """
-
+	"""
+    """
         #first collect all of the items together
         if type(toUnion) == CQ or type(toUnion) == Workplane:
             solids = toUnion.solids().vals()
@@ -2126,7 +2247,8 @@ class Workplane(CQ):
 
         if clean: r = r.clean()
 
-        return self.newObject([r])
+	return CQ.newObject(self,[r])"
+    """
 
     def cut(self, toCut, combine=True, clean=True):
         """
@@ -2162,7 +2284,7 @@ class Workplane(CQ):
         if combine:
             solidRef.wrapped = newS.wrapped
 
-        return self.newObject([newS])
+	return CQ.newObject(self, [newS])
 
     def cutBlind(self, distanceToCut, clean=True):
         """
@@ -2195,7 +2317,7 @@ class Workplane(CQ):
         if clean: s = s.clean()
 
         solidRef.wrapped = s.wrapped
-        return self.newObject([s])
+	return CQ.newObject(self, [s])
 
     def cutThruAll(self, positive=False, clean=True):
         """
@@ -2255,7 +2377,7 @@ class Workplane(CQ):
         s = time.time()
         wireSets = sortWiresByBuildOrder(list(self.ctx.pendingWires), self.plane, [])
         #print "sorted wires in %d sec" % ( time.time() - s )
-        self.ctx.pendingWires = []  # now all of the wires have been used to create an extrusion
+        #self.ctx.pendingWires = []  # now all of the wires have been used to create an extrusion
 
         #compute extrusion vector and extrude
         eDir = self.plane.zDir.multiply(distance)
@@ -2378,7 +2500,7 @@ class Workplane(CQ):
 
         #if combination is not desired, just return the created boxes
         if not combine:
-            return boxes
+            return CQ.newObject(self, [boxes])
         else:
             #combine everything
             return self.union(boxes, clean=clean)

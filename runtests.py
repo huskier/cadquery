@@ -1,4 +1,5 @@
 import sys
+sys.path.append('E:/Software/FreeCAD_0.16.5958_x86_dev_bin/bin')
 from tests import *
 import cadquery
 import unittest
